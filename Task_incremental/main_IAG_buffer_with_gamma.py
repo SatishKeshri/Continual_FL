@@ -1114,7 +1114,6 @@ class CFLAG:
                     logits = model(data, task_id_device)
                 else:
                     logits = model(data, 0)
-                # logits = model(data, task_id_device) # ISSUE (fixed, multi head added) (02 Oct'24): check if this is correct
                 loss = criterion(logits, target)
     
                 total_loss += loss.item()
@@ -1147,7 +1146,6 @@ class CFLAG:
                     logits = model(data, task_id_device)
                 else:
                     logits = model(data, 0)
-                # logits = model(data, task_id_device) # ISSUE (fixed, added mult-head flag)(02 Oct'24): check s this correct
                 loss = criterion(logits, target)
     
                 total_loss += loss.item()
@@ -1264,7 +1262,6 @@ if __name__== "__main__":
     print(f"Dataset: {parser.dataset} with splits: {num_tasks}")
     print(parser)
     algo = CFLAG(parser, bm, num_tasks,)
-    algo.setup_seed(parser.seed)
     algo.server()
     print(parser)
 
