@@ -1,0 +1,4 @@
+# IID
+python main_task_inc.py --alpha=100000.0 --seed=1235 --dataset="CIFAR100" --num_tasks=5 --model_name "resnet18" --batch_size 128 --num_classes_total 100 --multi_head_flag --IAG_flag --delayed_grad_batch_flag --grad_f_flag --adaptive_flag --n_rounds 10 --n_clients 5 --n_client_epochs 2 --initial_buffer_size 400 --memory_sample_size 100 --optim "adam" --lr 0.0001 --lr_retrain 0.0001 --adaptive_lr_batch_flag --proxy_adaptive_lr
+# Non-IID
+python main_task_inc.py --alpha=0.1 --seed=1235 --dataset="CIFAR100" --num_tasks=5 --model_name "resnet18" --batch_size 128 --num_classes_total 100 --multi_head_flag --IAG_flag --delayed_grad_batch_flag --grad_f_flag --adaptive_flag --n_rounds 10 --n_clients 5 --n_client_epochs 2 --initial_buffer_size 400 --memory_sample_size 100 --optim "adam" --lr 0.0001 --lr_retrain 0.0001 --adaptive_lr_batch_flag --proxy_adaptive_lr
