@@ -1587,6 +1587,5 @@ if __name__== "__main__":
     print(f"Dataset: {parser.dataset} with splits: {num_tasks}")
     print(parser)
     algo = CFLAG(parser, bm, num_tasks,)
-    algo.setup_seed(parser.seed)
     algo.server()
     print(parser)
