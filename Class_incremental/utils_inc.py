@@ -49,8 +49,8 @@ def arg_parser() -> argparse.ArgumentParser:
     
     
     parser.add_argument("--num_tasks", type=int, default=5) # 5,10,20 for 
-    parser.add_argument("--seed", type=int, default=1234) #default=1, cifar100 2021, 2022, 2023
-    # parser.add_argument("--class_per_head", type=int, default=2) 
+    parser.add_argument("--seed", type=int, default=1234) #default=1,
+    # parser.add_argument("--class_per_head", type=int, default=2)
     parser.add_argument("--num_classes_total", type=int, default=10)
     parser.add_argument("--L", type=float, default=5)#5
 
