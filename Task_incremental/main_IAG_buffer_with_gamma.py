@@ -57,8 +57,6 @@ class MLP_multi(nn.Module):
         assert n_classes % num_tasks == 0, "Number of classes should be divisible by number of tasks"
 
         self.fc1 = nn.Linear(input_size, hidden_size)
-        # self.fc2 = nn.Linear(hidden_size, n_classes)
-        # self.fc2_list = 
         if multi_head:
             self.task_classifiers = nn.ModuleList([
             nn.Linear(hidden_size, n_classes//num_tasks) for _ in range(num_tasks)
@@ -94,8 +92,6 @@ class CFLAG:
             self.num_classes_total = 200
         else:
             self.num_classes_total = args.num_classes_total
-        # print(f"cifar in dataset name: {'cifar' in self.args.dataset.lower()}")
-        # print(f"num classes total: {self.num_classes_total}")
         self.n_client_epochs = args.n_client_epochs
         self.multi_head_flag = args.multi_head_flag
         if self.multi_head_flag:
@@ -107,8 +103,6 @@ class CFLAG:
         self.L = args.L
         self.eps = args.eps
         self.optim_name = str(args.optim).lower()
-        # self.num_classes_total = args.num_classes_total
-        # self.class_per_head = args.class_per_head
         self.memory_sample_size = args.memory_sample_size
         self.clip_grad_g_val = args.clip_grad_g_val
         self.clip_grad_f_val = args.clip_grad_f_val
@@ -285,8 +279,6 @@ class CFLAG:
                     grads_f_clients_list = [cl[0] for cl in grads_f_clients_list_samples]
                     elig_clients = sum([1 if cl[1]>0 else 0 for cl in grads_f_clients_list_samples])
                 grads_f_server_dict = {k: sum(d[k] for d in grads_f_clients_list) for k in grads_f_clients_list[0]}
-                # Average them out
-                # grads_f_server_dict = {k: torch.div(v, len(grads_f_clients_list)) for k, v in grads_f_server_dict.items()}
                 grads_f_server_dict = {k: torch.div(v, max(1,elig_clients)) for k, v in grads_f_server_dict.items()}
         
             else:
@@ -306,12 +298,8 @@ class CFLAG:
                 clients_accs.append(cl_acc)
                 cl_test_loss, cl_test_acc = self.test(model=self.cl_models_list[cl_id])
                 clients_test_losses.append(cl_test_loss)
-                clients_test_accs.append(cl_test_acc)
-                # print(f"From mini-server Task: {self.task_id}, client: {cl_id}, Server round: {epoch} training loss: {cl_loss}, training accuracy: {cl_acc}")
-                # print(f"From mini-server Task: {self.task_id}, client: {cl_id}, Server round: {epoch} test loss: {cl_test_loss}, test accuracy: {cl_test_acc}")
-                
+                clients_test_accs.append(cl_test_acc)       
 
-            
             # Update server model based on client models and then transmit to clients
             updated_weights = average_weights(self.cl_models_list, state_dict=False)
             self.global_model.load_state_dict(updated_weights)
@@ -340,7 +328,6 @@ class CFLAG:
         print(f"At the end of task {self.task_id} length of memory buffers: {[self.client_buffer_size[client_idx] for client_idx in range(self.num_clients)]}")
         ## Update memory buffer for each client
         for cl_id in idx_clients:
-            
             self.memory_buffer_updator(cl_id, client_datasets[cl_id], name=self.args.memory_scheme)
         print(f"\nResults after Task: {self.task_id}, Epoch: {epoch + 1} global rounds of training:")
         print(f"---> Avg Training Loss, accuracy (before aggregation): {sum(train_losses) / len(train_losses), sum(train_accs) / len(train_accs)}")
@@ -397,17 +384,13 @@ class CFLAG:
             grads_dict = {}
             for idx, (data, target, task_id_label) in enumerate(train_loader):
                 target = target % self.class_per_head
-                # print(target)
                 data, target, task_id_label = data.to(self.device), target.to(self.device), task_id_label.to(self.device)
                 if self.multi_head_flag:
                     logits = model(data, task_id_device)
                 else:
                     logits = model(data, 0)
                 loss = criterion(logits, target)
-                # if loss.item() > 10.0:
-                #     print(f"loss inside calc_iag grads 1 is: {loss.item()}")
                 loss.backward()
-                # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=self.norm_threshold)
                 with torch.no_grad():
                     
                     grads_batch = {str(name): param.grad.clone().detach() if param.grad is not None else torch.zeros_like(param) for (name, param) in model.named_parameters()}
@@ -473,14 +456,11 @@ class CFLAG:
         
         if inn <= 0:
             alp_proxy = current_lr*(1- torch.div(inn,max(norm_f_2, self.eps)))
-            # alp_proxy = torch.clamp(alp_proxy, min=1e-4, max=self.max_clip)
             beta_proxy = current_lr 
             if abs(alp_proxy) > 2/self.L:
                 print(f"Alp_proxy is more than 2/L with value: {alp_proxy}")
-                # stop
             if abs(beta_proxy) > 2/self.L:
                 print(f"Beta_proxy is more than 2/L with value: {beta_proxy}")
-                # stop
         else:
             alp_proxy = current_lr 
             inn = torch.clamp(inn, min=self.eps,)
@@ -517,7 +497,6 @@ class CFLAG:
             start = time.time()
             iag_grads_dict_list = [d["full"] for d in iag_grads_dict_list if "full" in d.keys()]
             grads_iag_dict = {k: sum(d[k] for d in iag_grads_dict_list) for k in iag_grads_dict_list[0]}
-            # grads_iag_dict = dict(sum(map(Counter, iag_grads_dict_list), Counter())) # ISSUE (fixed below) (25 Sep'24): not dividing by number of clients
             grads_iag_dict = {"full": {k : torch.div(v, len(iag_grads_dict_list)) for k, v in grads_iag_dict.items()}}
             
 
@@ -541,7 +520,6 @@ class CFLAG:
     
     def _get_client_memory_grads_old(self, client_idx):
         """Compute grads on the memory data and return the grads"""
-        # model = copy.deepcopy(self.global_model)
         model = self.cl_models_list[client_idx]
         model.train()
         criterion = nn.CrossEntropyLoss()
@@ -558,9 +536,6 @@ class CFLAG:
         
         samples = 0
         for idx, (data, target, task_id_label) in enumerate(train_loader_memory):
-            if idx > 5:
-                # break
-                pass
             target = target % self.class_per_head
             data, target, task_id_label = data.to(self.device), target.to(self.device), task_id_label.to(self.device)
             optimizer.zero_grad()
@@ -582,7 +557,6 @@ class CFLAG:
 
                 samples += data.size(0)
         grads_f = {name: grad / len(train_loader_memory) for (name, grad) in grads_f.items() if "task_classifiers" not in name}
-        # grads_f_full = [grad/len(train_loader_memory) for (name, grad) in grads_f_full.values()]
         grads_f_full = [grad/len(train_loader_memory) for grad in grads_f_full]
         optimizer.zero_grad()
         return list(grads_f.values()), grads_f_full
@@ -606,9 +580,7 @@ class CFLAG:
             memory_data = storage_p.buffer.subset(sample_idx)
             print(f"Memory buffer size for client {client_idx}: buffer id: {buf_id}, {len(storage_p.buffer)}, sampled size: {sample_size}")
             
-            train_loader_memory, _ = self._get_dataloader(memory_data, batch_size=mem_batch_size, only_train=True) 
-            # sampled_targets = []
-                    
+            train_loader_memory, _ = self._get_dataloader(memory_data, batch_size=mem_batch_size, only_train=True)                     
             model.train()
             for idx, (data, target, task_id_label) in enumerate(train_loader_memory):
                 task_id_device = torch.tensor(copy.copy(buf_id)).to(self.device) 
@@ -657,8 +629,7 @@ class CFLAG:
         """Calculate inner product"""
         inn = torch.tensor(0.0).to(self.device)
         for grad1, grad2 in zip(grad_list_1, grad_list_2):
-            
-            product = torch.div(torch.dot(grad1.view(-1), grad2.view(-1)), len(grad1.view(-1))) # Try this instead of lst divison
+            product = torch.div(torch.dot(grad1.view(-1), grad2.view(-1)), len(grad1.view(-1)))
             inn += product
         del product
         # gc.collect()
@@ -696,7 +667,7 @@ class CFLAG:
         if inn >0: # To avoid very small beta
             inn = torch.clamp(inn, min=self.eps,)
         # divide by learning_rate for further use by optimizer
-        beta = ((1-alp_t*self.L) / max(self.L * norm_g_2, self.eps)) * inn # ISSUE (24 Sep'24): check correct default_lr
+        beta = ((1-alp_t*self.L) / max(self.L * norm_g_2, self.eps)) * inn
         # clamp values
         beta = torch.clamp(beta, min=self.eps,) 
         
@@ -771,8 +742,6 @@ class CFLAG:
         model = self.cl_models_list[client_idx]
         if grads_f_dict is None: 
             adaptive = False
-        # else:
-        #     adaptive_flag = self.adaptive_flag
         model.train()
         criterion = nn.CrossEntropyLoss()
         
@@ -795,13 +764,10 @@ class CFLAG:
                     logits = model(data, task_id_device)
                 else:
                     logits = model(data, 0)
-                loss = criterion(logits, target)
-                
-                
+                loss = criterion(logits, target)                
                 loss.backward()
                 
-                if (self.IAG_flag) and (self.IAG_batch_flag) and (self.delayed_grad_batch_flag): # case 3
-                    # print("case 3") ## check
+                if (self.IAG_flag) and (self.IAG_batch_flag) and (self.delayed_grad_batch_flag):
                     with torch.no_grad():
                         new_grads_iag = {name: param.grad.clone().detach() if param.grad is not None else torch.zeros_like(param) for (name, param) in model.named_parameters()}
                         new_grads_iag = [server_iag_dict[str(batch_id)][name]  - client_iag_dict[str(batch_id)][name] + new_grads_iag[name] for name, param in model.named_parameters()]
@@ -818,7 +784,6 @@ class CFLAG:
                     optimizer.zero_grad()
                 
                 elif (self.IAG_flag) and (not self.IAG_batch_flag) and (self.delayed_grad_batch_flag): 
-                    # print("case 2")
                     with torch.no_grad():
                         new_grads_iag = {name: param.grad.clone().detach() if param.grad is not None else torch.zeros_like(param) for (name, param) in model.named_parameters()}
                         new_grads_iag = [server_iag_dict["full"][name]  - client_iag_dict["full"][name] + new_grads_iag[name] for name, param in model.named_parameters()]
@@ -842,10 +807,8 @@ class CFLAG:
                         grads_g = [param for name,param in grads_g.items()]
                         
                         if adaptive and self.adaptive_lr_batch_flag:
-                            # print("case NCCL, check train_adap outer loop adding grads_f also")
                             grads_f = [grad for name, grad in grads_f_dict.items()]
                             current_lr = optimizer.param_groups[-1]['lr']
-                            # grads_g = [param for name,param in grads_g.items()]
                             grads_g_final = self.calc_new_grads_adaptive_batch(grads_f, grads_g, current_lr, self.alp_proxy, self.bet_proxy) 
                             _ = self._grad_updator(grads_g_final, model)
                             
@@ -859,7 +822,6 @@ class CFLAG:
                     continue
 
             if (self.IAG_flag) and (not self.IAG_batch_flag) and (not self.delayed_grad_batch_flag): #case 1
-                # print("case 1")
                 with torch.no_grad():
                     new_grads_iag = {name: param.grad.clone().detach() if param.grad is not None else torch.zeros_like(param) for (name, param) in model.named_parameters()}
                     new_grads_iag = [server_iag_dict["full"][name]  - client_iag_dict["full"][name] + new_grads_iag[name] for name, param in model.named_parameters()]
@@ -887,9 +849,9 @@ class CFLAG:
                 optimizer.step()
                 optimizer.zero_grad()
             
-            # Scheduler step
-            if self.task_id >0:
-                pass
+            # # Scheduler step
+            # if self.task_id >0:
+            #     pass
                 # scheduler.step()
             
             train_task_metric_dict = {task_id: self.train_metric_with_task_id(task_id, model=model) for task_id in range(self.task_id+1) }
@@ -929,7 +891,7 @@ class CFLAG:
         """Trains a client for one global server round on both the memory data and the current task data"""
         if (self.task_id == 0) or (not self.grad_f_flag):
             _ = self._train_client_curr(client_idx, sub_exp_train, server_iag_dict=server_iag_dict, client_iag_dict=client_iag_dict, grads_f_dict=None, adaptive=False)       
-        elif (self.task_id > 0) and (grads_f_server is not None): # ISSUE: verify this logic, using iag during training 
+        elif (self.task_id > 0) and (grads_f_server is not None): 
             
             if self.adaptive_lr_round_flag:
                 
@@ -943,7 +905,7 @@ class CFLAG:
                 global_model_parameters = {name: param.clone().detach() for name, param in self.global_model.named_parameters()}
                 a_i = [global_model_parameters[name] - param_client.clone().detach() for (name, param_client) in self.cl_models_list[client_idx].named_parameters()] # cumulative grads
                 assert grads_f_server is not None, "grads_f is None in the cflag proposed training"
-                grads_f = [grad for name, grad in grads_f_server.items()] ## ISSUE (27 Sep'24): what if grads_f is none, Also ensure grads f without adaptive is performed
+                grads_f = [grad for name, grad in grads_f_server.items()]
 
                 
                 optimizer = self.create_optimizer(self.task_id, model)
@@ -976,7 +938,7 @@ class CFLAG:
         try:
             del train_task_metric_dict, task_metric_dict, global_model_parameters, a_i, grads_f, current_lr, new_grads, optimizer
         except:
-            print("OLD Unable to delete in train_adap")
+            print("Unable to delete in train_adap")
         # gc.collect()
         return train_loss, train_acc
     
@@ -994,7 +956,7 @@ class CFLAG:
             
             _ = self._train_client_curr(client_idx, sub_exp_train, server_iag_dict=server_iag_dict, client_iag_dict=client_iag_dict, grads_f_dict=grads_f_server, adaptive=self.adaptive_flag)
             
-            model = self.cl_models_list[client_idx] # load model here after training only
+            model = self.cl_models_list[client_idx]
             model.train()
             optimizer = self.create_optimizer(self.task_id, model)
             # Train on memory data
@@ -1047,7 +1009,6 @@ class CFLAG:
             shuffle = True
         if drop_last is None:
             drop_last = False
-        # print(f"Dataset size: {len(training_dataset)}")
         train_loader = DataLoader(training_dataset, batch_size=batch_size, shuffle=shuffle, drop_last=drop_last)
         if not only_train:
             test_set = self.bm.test_stream[self.task_id].dataset
